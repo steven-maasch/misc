@@ -1,2 +1,2 @@
-# misc-scripts
-Miscellaneous scripts in various languages
+# misc
+Miscellaneous stuff (scripts, files, ...) in various languages
