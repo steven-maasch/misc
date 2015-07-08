@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+set -uo pipefail
+
+# $1 - ramdisk size
+# $2 - absolute path to mountpoint
+mount_ramdisk() {
+  local ramdisk_size="$1"; shift
+  local mountpoint="$1"; shift
+  sudo mount -v -t tmpfs -o user,size="${ramdisk_size}" none "${mountpoint}"
+}
+
+umount_ramdisk() {
+  local mountpoint="$1"; shift
+  sudo umount -v "${mountpoint}"
+}
+
+# $1 - ask to create mountpoint if does not exists
+read_mountpoint() {
+  local -i ask_create="$1"; shift
+  while true; do
+    read -e -p "Ramdisk mountpoint: " -i "${DEFAULT_MOUNTPOINT}" mountpoint
+    if [[ -d "${mountpoint}" ]]; then
+      break
+    else
+      echo -e "\e[31mMountpoint \"${mountpoint}\" does not exists\e[0m"
+      if [[ "${ask_create}" -ne 0 ]]; then
+        create_directory "${mountpoint}"
+        if [[ "$?" -eq 0 ]]; then
+          break
+        fi
+      fi
+    fi
+  done
+}
+
+read_ramdisk_size() {
+  while true; do
+    read -e -p "Ramdisk size: " -i "${DEFAULT_RAMDISK_SIZE}" ramdisk_size
+    if [[ -n "${ramdisk_size}" ]]; then
+      break
+    fi
+  done
+}
+
+create_directory() {
+  local directory="$1"; shift
+  while true; do
+    read -e -p "Create \"${directory}\"? [j/n]:" yn
+    case "${yn}" in
+      [Yy]* )
+        mkdir -p "${directory}"
+        break
+        ;;
+      [Nn]* )
+        return 1
+        ;;
+      *) ;;
+    esac
+  done
+}
+
+perr() {
+  echo -e "\e[31m$@\e[0m" >&2
+}
+
+run_as_root() {
+  if [[ $EUID -ne 0 ]]; then
+    perr "Please run script with sudo"
+    exit 1
+  fi
+}
+
+main() {
+  run_as_root
+
+  declare -r SUDO_USER_HOME="$(eval echo ~"$SUDO_USER")"
+  declare -r DEFAULT_MOUNTPOINT="${SUDO_USER_HOME}/ramdisk"
+  declare -r DEFAULT_RAMDISK_SIZE="200M"
+
+  while true; do
+    read -p "Mount or unmount ramdisk? [m/u]: " mu
+    case "$mu" in
+      [Mm]* )
+        read_ramdisk_size
+        read_mountpoint 1
+        mount_ramdisk "${ramdisk_size}" "${mountpoint}"
+        break
+        ;;
+      [Uu]* )
+        read_mountpoint 0
+        umount_ramdisk "${mountpoint}"
+        break
+        ;;
+      * ) ;;
+    esac
+  done
+}
+
+main "$@"
